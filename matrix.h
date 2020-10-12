@@ -152,12 +152,6 @@ public:
 
     template <int N, typename S>
     friend std::ostream& operator<<(std::ostream&, TensorSpan<N,S> const&);
-
-    //template <int N, typename S>
-    //friend std::ostream& operator<<(std::ostream&, TensorSpan<N,S> const&&);
-    
-    //template<>
-    //friend class TensorSpan<ndims + 1, T>;
 };
 
 template <typename T>
@@ -188,9 +182,6 @@ public:
     
     template <typename S>
     friend std::ostream& operator<<(std::ostream&, TensorSpan<1,S> const&);
-
-    // template <typename S>
-    // friend std::ostream& operator<<(std::ostream&, TensorSpan<1,S>&);
 };
 
 template<int ndims, typename T>

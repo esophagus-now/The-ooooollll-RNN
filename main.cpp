@@ -279,7 +279,7 @@ int main() {
     TensorSpan<3, float> mat3(test_vec.data(), otherdims);
     cout << mat3 << el;
 
-    mat3[0][0][0] = 100;
+    mat3[0][1][2] = 100;
     cout << mat3 << el;
 
     return 0;
