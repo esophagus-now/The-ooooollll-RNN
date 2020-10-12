@@ -1,0 +1,29 @@
+Done:
+
+[x] Model class
+[x] Relu activation function
+
+
+To do (roughly ordered by what we want to do next):
+
+[ ] Name the library
+
+[ ] Read model from JSON/XML/etc.
+[ ] Optimizer class (with multi-example training)
+[ ] MNIST
+[ ] RNN layer
+[ ] CNN layer
+[ ] Generalize data type (instead of forcing vector<float>)
+[ ] Softmax layer
+
+
+
+[ ] Find a cool application
+
+
+[ ] Different types of optimizers (adam, adaboost, etc.)
+
+
+
+
+[ ] Improve performance (caching)
