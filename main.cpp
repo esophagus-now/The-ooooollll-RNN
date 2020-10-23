@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <random>
 #include <utility>
+#include <chrono>
 
 #include "base_types.h"
 #include "activation_fns.h"
@@ -173,8 +174,18 @@ void train(Model const& m) {
 }
 */
 
-int main() {
+template <typename fn, typename... T>
+void time_fn(int iterations, fn F, T... args) {
+    auto tic = chrono::high_resolution_clock::now();
+    for (int i = 0; i < iterations; i++) F(args...);
+    auto toc = chrono::high_resolution_clock::now();
 
+    auto duration = chrono::duration_cast<chrono::microseconds>(toc-tic).count();
+
+    cout << iterations << " iterations in " << duration << el;
+}
+
+int main() {
     vector<float> f = {-0.1, -0.3, 0.4};
     cout << "Input: " << f << el;
     vector<float> actual = {-1, 0.2, 3.5};
@@ -266,11 +277,10 @@ int main() {
 
 
     std::vector<float> test_vec = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-    int dims[] = {2, 1, 2, 3};
+    int dims[] = {1, 2, 1, 2, 3};
     int constexpr t_rank = sizeof(dims)/sizeof(*dims);
     auto t1 = Tensor<t_rank, float>(test_vec, dims);
     std::cout << "t1: " << t1 << std::endl;
-    //TensorSpan<t_rank, float> mat(t);
 
     for (int i = 0; i < dims[0]; i++) {
         for (int j = 0; j < dims[1]; j++) {
@@ -280,10 +290,9 @@ int main() {
     }
 
     std::vector<float> test_vec_2 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};  
-    int otherdims[] = {3, 1, 5};
+    int otherdims[] = {3, 1, 1, 5, 1};
     int constexpr other_rank = sizeof(otherdims)/sizeof(*otherdims);
     auto t2 = Tensor<other_rank, float>(std::move(test_vec_2), otherdims);
-    //TensorSpan<other_rank, float> vecs(t2);
     cout << "t2: " << t2 << el;
 
     for (int i = 0; i < t2.dims[0]; i++) {
@@ -292,6 +301,59 @@ int main() {
 
     auto prod = tensormul(t1, t2);
     cout << prod << el;
+
+
+    srand(0);
+    int dim1 = 100, dim2 = 50, dim3 = 200;
+    int A_dims[] = {dim1, dim2};
+    int constexpr A_rank = sizeof(A_dims) / sizeof(*A_dims);
+    int B_dims[] = {dim2, dim3};
+    int constexpr B_rank = sizeof(B_dims) / sizeof(*B_dims);
+
+    std::vector<float> A(dim1 * dim2, 0);
+    std::vector<float> B(dim2 * dim3, 0);
+    
+    for (int i = 0; i < dim1; i++) {
+      for (int j = 0; j < dim2; j++) {
+        A[i*dim2 + j] = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+      }
+    }
+    for (int i = 0; i < dim2; i++) {
+      for (int j = 0; j < dim3; j++) {
+        B[i*dim3 + j] = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+      }
+    }
+
+    Tensor<A_rank,float> A_tensor(A, A_dims);
+    Tensor<B_rank,float> B_tensor(B, B_dims);
+
+    time_fn(
+        100,
+        [=](const std::vector<float>& A, const std::vector<float>& B) {
+            std::vector<float> C(dim1 * dim3);
+            for (int i = 0; i < dim1; i++) {
+              float const* A_row = A.data() + i*dim2;
+              float *C_row = C.data() + i*dim3;
+              
+              for (int j = 0; j < dim3; j++) {
+                C_row[j] = 0;
+                for (int k = 0; k < dim2; k++) {
+                  C_row[j] += A_row[k] * B[k*dim3 + j];
+                }
+              }
+            }
+        }, A, B
+    );
+
+    using fntype = Tensor<2,float>(*)(Tensor<2,float> const&, Tensor<2,float> const&);
+
+    time_fn(
+        100,
+        static_cast<fntype>(&tensormul), 
+        //tensormul,
+        A_tensor, 
+        B_tensor
+    );
 
     return 0;
 }

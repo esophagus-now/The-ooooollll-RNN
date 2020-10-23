@@ -361,12 +361,14 @@ Tensor<LHS_rank+RHS_rank-2, T> tensormul(
     }
 
     auto delim = "";
+#ifdef DEBUG
     std::cout << "ret_dims = [";
     for (int i = 0; i < ret_rank; i++) {
         std::cout << delim << ret_dims[i];
         delim = ",";
     }
     std::cout << "]" << std::endl;
+#endif
 
     Tensor<ret_rank, T> ret(ret_dims);
 
