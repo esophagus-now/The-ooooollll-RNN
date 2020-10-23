@@ -2,6 +2,7 @@ Done:
 
 [x] Model class
 [x] Relu activation function
+[x] Generalize data type (instead of forcing vector<float>)
 
 
 To do (roughly ordered by what we want to do next):
@@ -13,7 +14,6 @@ To do (roughly ordered by what we want to do next):
 [ ] MNIST
 [ ] RNN layer
 [ ] CNN layer
-[ ] Generalize data type (instead of forcing vector<float>)
 [ ] Softmax layer
 
 

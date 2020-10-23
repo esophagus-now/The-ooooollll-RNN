@@ -1,7 +1,13 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
+
+// #ifndef DEBUG
+// #define DEBUG 1
+// #endif
+
 #include <algorithm>
+#include <stdexcept>
 #include <vector>
 #include <iostream>
 #include <assert.h>
@@ -92,96 +98,81 @@ std::ostream& operator<<(std::ostream& o, Matrix<T>& M) {
     return o << delim << "}";
 }
 
-// int main() {
-//     auto m = Matrix<float>(8,7);
-
-//     for (int i = 0; i < 8; i++) {
-//         for (int j = 0; j < 7; j++) {
-//             m[i][j] = i*7 + j;
-//         }
-//     }
-
-//     for (int i = 0; i < 8; i++) {
-//         for (int j = 0; j < 7; j++) {
-//             std::cout << m[i][j] << " ";
-//         }
-//         std::cout << std::endl;
-//     }
-
-//     std::cout << m << std::endl;
-//     return 0;
-// }
-
-
 //Template specialization below covers ndims = 1, we can assume
 //this struct always has ndims > 1
-template <int ndims, typename T>
-class TensorSpan {
-private:
+template <int rank, typename T>
+struct TensorSpan {
+    static_assert(rank >= 1, "TensorSpan code only handles positive-rank tensors");
+
     //T *data;
     T const* data;
     int const* dims;
-    int stride;
+    int const* strides;
 
-    static int get_default_stride(int const* dims) {
-        int prod = 1;
-        for (int i = ndims - 1; i > 0; i--) prod *= dims[i];
-        return prod;
+    TensorSpan(T const* data, int const* dims, int const* strides) :
+        data(data), dims(dims), strides(strides)
+    {
+        #ifdef DEBUG
+        std::cout << "Constructing a TensorSpan<" << rank << "> with dimensions [";
+        auto delim = "";
+        for (int i = 0; i < rank; i++) {
+            std::cout << delim << dims[i];
+            delim = ",";
+        }
+        std::cout << "]" << std::endl;
+        #endif
     }
 
-public:
-    TensorSpan(T *data, int const* dims, int stride) :
-        data(data), dims(dims), stride(stride)
-    {}
-
-    TensorSpan(T const* data, int const* dims, int stride) :
-        data(data), dims(dims), stride(stride)
-    {}
-    
-    TensorSpan(T *data, int const* dims) : TensorSpan(data, dims, get_default_stride(dims))
-    {}
-
-    TensorSpan<ndims - 1, T> operator[] (int n) {
-        auto ptr = const_cast<T*>(data);
-        return TensorSpan<ndims - 1, T>(ptr + n * stride, dims + 1, stride / dims[1]);
+    TensorSpan<rank - 1, T> operator[] (int n) {
+        //auto ptr = const_cast<T*>(data);
+        //return TensorSpan<rank - 1, T>(ptr + n * strides[0], dims + 1, strides + 1);
+        return TensorSpan<rank - 1, T>(data + n * strides[0], dims + 1, strides + 1);
     }
 
-    TensorSpan<ndims - 1, T> const operator[] (int n) const {
-        return TensorSpan<ndims - 1, T>(data + n * stride, dims + 1, stride / dims[1]);
+    TensorSpan<rank - 1, T> const operator[] (int n) const {
+        return TensorSpan<rank - 1, T>(data + n * strides[0], dims + 1, strides + 1);
     }
 
-    template <int N, typename S>
-    friend std::ostream& operator<<(std::ostream&, TensorSpan<N,S> const&);
+    //Like doing my_tensor(:,:,:,n) in MATLAB syntax
+    TensorSpan<rank - 1, T> back_index(int n) {
+        return TensorSpan<rank - 1, T>(data + n*strides[rank-1], dims, strides);
+    }
+
+    //Like doing my_tensor(:,:,:,n) in MATLAB syntax
+    TensorSpan<rank - 1, T> const back_index(int n) const {
+        return TensorSpan<rank - 1, T>(data + n*strides[rank-1], dims, strides);
+    }
 };
 
 template <typename T>
-class TensorSpan<1, T> {
-private:
+struct TensorSpan<1, T> {
     T const* data;
 
     int const* dims;
-    int stride;
+    int const* strides;
 
-public:
-    TensorSpan(T *data, int const* dims, int stride) :
-        data(data), dims(dims), stride(stride)
-    {}
-
-    TensorSpan(T const *data, int const* dims, int stride) :
-        data(data), dims(dims), stride(stride)
+    TensorSpan(T const *data, int const* dims, int const* strides) :
+        data(data), dims(dims), strides(strides)
     {}
 
     T& operator[] (int n) {
         auto ptr = const_cast<T*>(data);
-        return ptr[n * stride];
+        return ptr[n * strides[0]];
     }
 
     T const& operator[] (int n) const {
-        return data[n * stride];
+        return data[n * strides[0]];
     }
     
-    template <typename S>
-    friend std::ostream& operator<<(std::ostream&, TensorSpan<1,S> const&);
+    //Like doing my_tensor(:,:,:,n) in MATLAB syntax
+    T& back_index(int n) {
+        return (*this)[n];
+    }
+
+    //Like doing my_tensor(:,:,:,n) in MATLAB syntax
+    T const& back_index(int n) const {
+        return (*this)[n];
+    }
 };
 
 template<int ndims, typename T>
@@ -198,19 +189,6 @@ std::ostream& operator<<(std::ostream &o, TensorSpan<ndims, T> const& t) {
     return o << "}";
 }
 
-/*template<int ndims, typename T>
-std::ostream& operator<<(std::ostream &o, TensorSpan<ndims, T> const&& t) {
-    o << "{";
-    auto delim = "";
-
-    for (int i = 0; i < t.dims[0]; i++) {
-        o << delim << t[i];
-        delim = ", ";
-    }
-
-    return o << "}";
-}*/
-
 template<typename T>
 std::ostream& operator<<(std::ostream &o, TensorSpan<1, T> const& t) {
     o << "{";
@@ -223,5 +201,194 @@ std::ostream& operator<<(std::ostream &o, TensorSpan<1, T> const& t) {
 
     return o << "}";
 }
+
+template <int rank, typename T>
+struct Tensor {
+    std::vector<T> storage;
+    int dims[rank];
+    int strides[rank];
+
+    int copy_dims_get_strides(int const *dims) {        
+        int prod = 1;
+        for (int i = rank - 1; i >= 0; i--) {
+            this->dims[i] = dims[i];
+            this->strides[i] = prod;
+            prod *= dims[i]; //NOT a mistake: only update prod after setting strides[i]
+        } 
+
+        return prod;
+    }
+
+    //TODO: add constructors that might copy from a vector or something, 
+    //rather than initialize an empty one
+    Tensor(int const* dims) {
+        int prod = copy_dims_get_strides(dims);
+        storage = std::vector<T>(prod);
+    }
+
+    Tensor(std::vector<T> vec, int const* dims) : storage(std::move(vec)) {
+        copy_dims_get_strides(dims);
+    }
+
+    TensorSpan<rank-1, T> operator[] (int n) {
+        return TensorSpan<rank, T>(*this)[n];
+    }
+
+    TensorSpan<rank, T> operator& () {
+        return TensorSpan<rank, T>(*this);
+    }
+
+    TensorSpan<rank, T> const operator& () const {
+        return TensorSpan<rank, T>(*this);
+    }
+
+    operator TensorSpan<rank, T>() const {
+        return TensorSpan<rank, T>(storage.data(), dims, strides);
+    }
+};
+
+template <int rank, typename T>
+std::ostream& operator<<(std::ostream &o, Tensor<rank,T> const& t) {
+    return o << TensorSpan<rank,T>(t);
+}
+
+//Does NOT perform any safety checks. Will default-construct all
+//elements in the output
+//Base case: dot product of two 1-d arrays
+template<int LHS_rank, int RHS_rank, typename T>
+typename std::enable_if<(LHS_rank == 1) && (RHS_rank == 1),void>::type
+tensormul(
+    TensorSpan<LHS_rank, T> const& A, 
+    TensorSpan<RHS_rank, T> const& B,
+    T& dest
+) {
+
+#ifdef DEBUG
+
+    std::cout   << "Called tensormul_wrapped<" 
+                << LHS_rank 
+                << "," 
+                << RHS_rank
+                << ">"
+                << std::endl
+    ;
+
+    assert(A.dims[0] == B.dims[0]);
+#endif
+
+    dest = T();
+    for (int i = 0; i < A.dims[0]; i++) {
+      dest += A[i] * B[i];
+    }
+    return;
+}
+
+//Does NOT perform any safety checks. Will default-construct all
+//elements in the output
+template<int LHS_rank, int RHS_rank, typename T>
+typename std::enable_if<(LHS_rank > 1),void>::type
+tensormul(
+    TensorSpan<LHS_rank, T> const& A, 
+    TensorSpan<RHS_rank, T> const& B,
+    TensorSpan<LHS_rank+RHS_rank-2, T> dest
+) {
+#ifdef DEBUG
+    std::cout   << "Called tensormul<" 
+                << LHS_rank 
+                << "," 
+                << RHS_rank
+                << ">"
+                << std::endl
+    ;
+#endif
+
+    for (int i = 0; i < A.dims[0]; i++) {
+        tensormul(A[i], B, dest[i]);
+    }
+}
+
+//Does NOT perform any safety checks. Will default-construct all
+//elements in the output
+template<int LHS_rank, int RHS_rank, typename T>
+typename std::enable_if<(LHS_rank == 1) && (RHS_rank > 1),void>::type
+tensormul(
+    TensorSpan<LHS_rank, T> const& A, 
+    TensorSpan<RHS_rank, T> const& B,
+    TensorSpan<LHS_rank+RHS_rank-2, T> dest
+) {
+
+#ifdef DEBUG
+    std::cout   << "Called tensormul_wrapped<" 
+                << LHS_rank 
+                << "," 
+                << RHS_rank
+                << ">"
+                << std::endl
+    ;
+#endif
+    for (int i = 0; i < B.dims[RHS_rank-1]; i++) {
+        tensormul(A, B.back_index(i), dest.back_index(i));
+    }
+}
+
+template<int LHS_rank, int RHS_rank, typename T>
+Tensor<LHS_rank+RHS_rank-2, T> tensormul(
+    TensorSpan<LHS_rank, T> const& A, 
+    TensorSpan<RHS_rank, T> const& B)
+{
+    static_assert(LHS_rank >= 2, "LHS must be matrix or array of matrices");
+    static_assert(RHS_rank >= 1, "RHS must be vector or array of vectors");
+
+#ifdef DEBUG
+    std::cout   << "Called tensormul_wrapped<" 
+                << LHS_rank 
+                << "," 
+                << RHS_rank
+                << ">"
+                << std::endl
+    ;
+#endif
+
+    int constexpr ret_rank = LHS_rank + RHS_rank - 2;
+
+    int ret_dims[ret_rank];
+    int pos = 0;
+    for (int i = 0; i < LHS_rank - 1; i++) {
+        ret_dims[pos++] = A.dims[i];
+    }
+    for (int i = 1; i < RHS_rank; i++) {
+        ret_dims[pos++] = B.dims[i];
+    }
+
+    auto delim = "";
+    std::cout << "ret_dims = [";
+    for (int i = 0; i < ret_rank; i++) {
+        std::cout << delim << ret_dims[i];
+        delim = ",";
+    }
+    std::cout << "]" << std::endl;
+
+    Tensor<ret_rank, T> ret(ret_dims);
+
+    if (A.dims[LHS_rank - 1] != B.dims[0]) {
+        throw std::runtime_error("Inner dimensions must agree");
+    }
+
+    tensormul(A, B, &ret);
+
+    return ret;
+}
+
+template<int LHS_rank, int RHS_rank, typename T>
+Tensor<LHS_rank+RHS_rank-2, T> tensormul(
+    Tensor<LHS_rank, T> const& A, 
+    Tensor<RHS_rank, T> const& B)
+{
+    return tensormul(&A, &B);
+}
+
+#ifdef DEBUG
+#undef DEBUG
+#endif
 
 #endif

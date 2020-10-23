@@ -174,6 +174,7 @@ void train(Model const& m) {
 */
 
 int main() {
+
     vector<float> f = {-0.1, -0.3, 0.4};
     cout << "Input: " << f << el;
     vector<float> actual = {-1, 0.2, 3.5};
@@ -265,22 +266,32 @@ int main() {
 
 
     std::vector<float> test_vec = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-    int dims[2] = {4, 3};
-    TensorSpan<2, float> mat(test_vec.data(), dims);
+    int dims[] = {2, 1, 2, 3};
+    int constexpr t_rank = sizeof(dims)/sizeof(*dims);
+    auto t1 = Tensor<t_rank, float>(test_vec, dims);
+    std::cout << "t1: " << t1 << std::endl;
+    //TensorSpan<t_rank, float> mat(t);
+
     for (int i = 0; i < dims[0]; i++) {
         for (int j = 0; j < dims[1]; j++) {
-            std::cout << mat[i][j] << " ";
+            std::cout << t1[i][j] << el;
         }
         std::cout << std::endl;
     }
-    std::cout << mat << std::endl;
 
-    int otherdims[3] = {2,2,3};
-    TensorSpan<3, float> mat3(test_vec.data(), otherdims);
-    cout << mat3 << el;
+    std::vector<float> test_vec_2 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};  
+    int otherdims[] = {3, 1, 5};
+    int constexpr other_rank = sizeof(otherdims)/sizeof(*otherdims);
+    auto t2 = Tensor<other_rank, float>(std::move(test_vec_2), otherdims);
+    //TensorSpan<other_rank, float> vecs(t2);
+    cout << "t2: " << t2 << el;
 
-    mat3[0][1][2] = 100;
-    cout << mat3 << el;
+    for (int i = 0; i < t2.dims[0]; i++) {
+      cout << "vecs[" << i << "] = " << t2[i] << std::endl;
+    }
+
+    auto prod = tensormul(t1, t2);
+    cout << prod << el;
 
     return 0;
 }
