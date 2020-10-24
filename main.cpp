@@ -277,7 +277,7 @@ int main() {
 
 
     std::vector<float> test_vec = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-    int dims[] = {1, 2, 1, 2, 3};
+    int dims[] = {2, 2, 3};
     int constexpr t_rank = sizeof(dims)/sizeof(*dims);
     auto t1 = Tensor<t_rank, float>(test_vec, dims);
     std::cout << "t1: " << t1 << std::endl;
@@ -304,7 +304,9 @@ int main() {
 
 
     srand(0);
-    int dim1 = 100, dim2 = 50, dim3 = 200;
+    int dim1, dim2, dim3;
+    cout << "Enter your dimensions" << el;
+    cin >> dim1 >> dim2 >> dim3;
     int A_dims[] = {dim1, dim2};
     int constexpr A_rank = sizeof(A_dims) / sizeof(*A_dims);
     int B_dims[] = {dim2, dim3};
@@ -328,17 +330,19 @@ int main() {
     Tensor<B_rank,float> B_tensor(B, B_dims);
 
     time_fn(
-        100,
+        500,
         [=](const std::vector<float>& A, const std::vector<float>& B) {
             std::vector<float> C(dim1 * dim3);
             for (int i = 0; i < dim1; i++) {
-              float const* A_row = A.data() + i*dim2;
-              float *C_row = C.data() + i*dim3;
+              //float const* A_row = A.data() + i*dim2;
+              //float *C_row = C.data() + i*dim3;
               
               for (int j = 0; j < dim3; j++) {
-                C_row[j] = 0;
+                //C_row[j] = 0;
+                C[i*dim3 + j] = 0;
                 for (int k = 0; k < dim2; k++) {
-                  C_row[j] += A_row[k] * B[k*dim3 + j];
+                  //C_row[j] += A_row[k] * B[k*dim3 + j];
+                  C[i*dim3 + j] += A[i*dim2 + k] * B[k*dim3 + j];
                 }
               }
             }
@@ -348,8 +352,8 @@ int main() {
     using fntype = Tensor<2,float>(*)(Tensor<2,float> const&, Tensor<2,float> const&);
 
     time_fn(
-        100,
-        static_cast<fntype>(&tensormul), 
+        500,
+        static_cast<fntype>(tensormul), 
         //tensormul,
         A_tensor, 
         B_tensor

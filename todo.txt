@@ -9,12 +9,12 @@ To do (roughly ordered by what we want to do next):
 
 [ ] Name the library
 
-[ ] Read model from JSON/XML/etc.
 [ ] Optimizer class (with multi-example training)
-[ ] MNIST
+[ ] Read model from JSON/XML/etc.
 [ ] RNN layer
 [ ] CNN layer
 [ ] Softmax layer
+[ ] MNIST
 
 
 

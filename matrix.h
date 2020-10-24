@@ -382,7 +382,7 @@ Tensor<LHS_rank+RHS_rank-2, T> tensormul(
 }
 
 template<int LHS_rank, int RHS_rank, typename T>
-Tensor<LHS_rank+RHS_rank-2, T> tensormul(
+inline Tensor<LHS_rank+RHS_rank-2, T> tensormul(
     Tensor<LHS_rank, T> const& A, 
     Tensor<RHS_rank, T> const& B)
 {
