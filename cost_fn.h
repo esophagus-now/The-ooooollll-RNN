@@ -10,35 +10,41 @@
 
 struct sqerr : cost_fn {
     //feed-forward
-    float cc(std::vector<float> const& x, std::vector<float> const& actual) override {
+    float cc(MSpan<float> const& x, MSpan<float> const& actual) override {
         float sum = 0.0;
 
-        assert(x.size() == actual.size());
+        assert(x.dims[0] == actual.dims[0]);
+        assert(x.dims[1] == actual.dims[1]);
 
-        for (unsigned i = 0; i < x.size(); i++) {
-            float diff = x[i] - actual[i];
-            sum += diff*diff;
+        for (int i = 0; i < x.length(); i++) {
+            for (int j = 0; j < x[i].length(); j++) {
+                float diff = x[i][j] - actual[i][j];
+                sum += diff*diff;
+            }
         }
 
         return sum;
     }
 
     //get gradient
-    std::vector<float> gg(std::vector<float> const& x, std::vector<float> const& actual) override {
-        assert(x.size() == actual.size());
-        assert(x.size() > 0);
+    Matrix<float> gg(MSpan<float> const& x, MSpan<float> const& actual) override {
+        assert(x.dims[0] == actual.dims[0]);
+        assert(x.dims[1] == actual.dims[1]);
+        assert(x.length() > 0);
 
-        std::vector<float> ret(x.size(), 0.0);
+        Matrix<float> ret(x.dims);
 
-        for (unsigned i = 0; i < x.size(); i++) {
-            ret[i] = 2.0*(x[i] - actual[i]);
+        for (int i = 0; i < x.length(); i++) {
+            for (int j = 0; j < x[i].length(); j++) {
+                ret[i][j] = 2.0*(x[i][j] - actual[i][j]);
+            }
         }
 
         return ret;
     }
 };
 
-
+/*
 struct sqerr_generalized : cost_fn_generalized {
     sqerr impl;
 
@@ -90,5 +96,6 @@ struct sqerr_generalized : cost_fn_generalized {
         return std::make_shared<floatvec>(std::move(ret));
     }
 };
+*/
 
 #endif

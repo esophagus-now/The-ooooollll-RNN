@@ -11,12 +11,17 @@
 #include <random>
 #include <utility>
 #include <chrono>
+#include <fstream>
+
+//#define DEBUG 1
 
 #include "base_types.h"
 #include "activation_fns.h"
 #include "layers.h"
 #include "cost_fn.h"
-#include "matrix.h"
+#include "tensor.h"
+#include "debug.h"
+#include "mnist/load_mnist.h"
 
 using namespace std;
 
@@ -43,63 +48,49 @@ ostream& operator<<(ostream &o, shared_ptr<T> const& p) {
     }
 }
 
-/*
-struct layer_data {
-    string type;
-    string name;
-
-    layer_data(string const& type, string const& name) :
-        type(type),
-        name(name)
-    {}
-
-    virtual explicit operator string() const {
-        return name + " of type " + type;
-    }
-
-};
-
-struct my_custom_data : layer_data {
-    vector<float> vf;
-};
-
-ostream& operator<<(ostream &o, layer_data const& ld) {
-    return o << string(ld);
-}
-*/
-
 class Model : layer {
-    std::vector<shared_ptr<layer> > layers;
 
 public:
+    std::vector<shared_ptr<layer> > layers;
+
 
     Model() {}
 
     //feed-forward
-    std::vector<float> ff(std::vector<float> const& x) override {
-        std::vector<float> cur(x);
+    Matrix<float> ff(MSpan<float> const& x) override {
+        Matrix<float> cur(x);
         for (auto const& l : layers) {
-            cur = l->ff(cur);
+            cur = l->ff(&cur);
         }
 
         return cur;
     }
 
     //backprop
-    virtual std::vector<float> bp(std::vector<float> const& x, std::vector<float> const& dy, float lr) override {
-        std::vector<std::vector<float> > layer_inputs;
-        layer_inputs.push_back(x);
+    virtual Matrix<float> bp(MSpan<float> const& x, MSpan<float> const& dy, float lr) override {
+        //Subtle bug: this used to be a vector of MSpans, but
+        //then you get dangling pointers. This was happening 
+        //because the actual result of running ff (see about 8-9
+        //lines lower down) was being discarded but we were still
+        //saving an MSpan into that matrix into the vector
+        std::vector<Matrix<float> > layer_inputs;
+        layer_inputs.emplace_back(x);
         
         assert(layers.size() > 0);
         for (unsigned i = 0; i < layers.size() - 1; i++) {
             layer_inputs.push_back(
-                layers[i]->ff(layer_inputs.back())
+                layers[i]->ff(&layer_inputs.back())
             );
         }
 
-        std::vector<float> cur_dy(dy);
+        Matrix<float> cur_dy(dy);
         for (int i = layers.size() - 1; i >= 0; i--){
-            cur_dy = layers[i]->bp(layer_inputs[i], cur_dy, lr);
+            DEBUG("before_bp[" + to_string(i) + "]", ::dump(*(layers[i])));
+            DEBUG("bp_inputs[" + to_string(i) + "]", ::dump(&layer_inputs[i]));
+            DEBUG("bp_dy_in[" + to_string(i) + "]", ::dump(&cur_dy));
+            cur_dy = layers[i]->bp(&layer_inputs[i], &cur_dy, lr);
+            DEBUG("after_bp[" + to_string(i) + "]", ::dump(*(layers[i])));
+            DEBUG("bp_outputs[" + to_string(i) + "]", ::dump(&cur_dy));
         }
         
         return cur_dy;
@@ -118,6 +109,7 @@ public:
     }*/
 };
 
+/*
 class Model_generalized : layer_generalized {
     std::vector<shared_ptr<layer_generalized> > layers;
 
@@ -163,10 +155,11 @@ public:
         layers.push_back(pl);
     }
 
-    /*void add_layer(layer &&l) {
-        layers.push_back(std::make_shared<layer>(l));
-    }*/
+    //void add_layer(layer &&l) {
+    //    layers.push_back(std::make_shared<layer>(l));
+    //}
 };
+*/
 
 /*
 void train(Model const& m) {
@@ -185,39 +178,132 @@ void time_fn(int iterations, fn F, T... args) {
     cout << iterations << " iterations in " << duration << el;
 }
 
+ofstream debug_out;
+
+Model train_mnist(std::vector<tpair> examples) {
+    constexpr int input_dim = 784;
+    constexpr int output_dim = 10;
+    Model model;
+    auto sigmoid_fn = sigmoid();
+    model.add_layer(make_shared<fc>(input_dim, 512, &sigmoid_fn));
+    // TODO: use softmax instead
+    model.add_layer(make_shared<fc>(512, output_dim, &sigmoid_fn));
+    //model.add_layer(make_shared<softmax>(512, output_dim));
+
+    // TODO: use cross-entropy loss
+    auto e = sqerr();
+    float last_cost = -1.0; //Some impossible cost to make sure we don't
+                            //terminate early
+    float cost = -1.0;
+    Matrix<float> output;
+    #define max_epoch 1
+    constexpr int batch_size = 32;
+    int num_batches = examples.size() / batch_size;
+    float lr = 0.015;
+    int epoch = 0;
+
+    do {
+        // Epoch of training
+        std::random_shuffle(examples.begin(), examples.end());
+
+        // split into minibatches
+        for (int batch_start_idx = 0, b = 0; b < num_batches; b++) {
+            int this_batch_size = batch_size + (b < examples.size() % batch_size);
+
+            int input_dims[2] = {this_batch_size, input_dim};
+            int output_dims[2] = {this_batch_size, output_dim};
+            std::vector<float> input_data(this_batch_size * input_dim);
+            std::vector<float> expected_output_data(this_batch_size * output_dim);
+
+            for (int i = 0; i < this_batch_size; i++) {
+                assert(batch_start_idx + i < examples.size());
+                assert(examples[batch_start_idx + i].first.size() == input_dim);
+                assert(examples[batch_start_idx + i].second.size() == output_dim);
+                assert(i*input_dim + input_dim < input_data.size());
+                std::copy(examples[batch_start_idx + i].first.begin(), 
+                          examples[batch_start_idx + i].first.end(), 
+                          input_data.begin() + i * input_dim);
+                std::copy(examples[batch_start_idx + i].second.begin(),
+                          examples[batch_start_idx + i].second.end(),
+                          expected_output_data.begin() + i * output_dim);
+            }            
+
+            Tensor<2,float> batch_inputs(std::move(input_data), input_dims);
+            Tensor<2,float> expected_outputs(std::move(expected_output_data), output_dims);
+
+            last_cost = cost;
+            output = model.ff(&batch_inputs);
+
+            cost = e.cc(&output, &expected_outputs);
+
+            auto gradient = e.gg(&output, &expected_outputs);
+
+            model.bp(&batch_inputs, &gradient, lr);
+
+            batch_start_idx += this_batch_size;
+        }
+    } while (abs(cost - last_cost) > 1e-7 && ++epoch < max_epoch);
+
+    if (epoch >= max_epoch) {
+        cout << "Error, maximum number of epochs exceeded" << el;
+    } else {
+        cout << "Converged after " << epoch << " epochs" << el;
+    }
+    
+    cout << "Cost: " << cost << el;
+    cout << "Output: " << output << el;
+
+    return model;
+}
+
 int main() {
-    vector<float> f = {-0.1, -0.3, 0.4};
+    debug_out.open("debug.py");
+    debug_out << "import numpy as np" << el;
+    debug_out << "dbg_data = [" << el;
+
+    //std::vector<float> f_vec = {-0.1, -0.3, 0.4};
+    //Vector<float> f(f_vec);
+    auto f = make_tensor<2,float>({1, 3}, {-0.1, -0.3, 0.4});
     cout << "Input: " << f << el;
-    vector<float> actual = {-1, 0.2, 3.5};
+    auto actual = make_tensor<2,float>({1, 3}, {-1, 0.2, 3.5});
     cout << "Actual: " << actual << el;
 
     cout << el;
 
+    auto ident_fn = identity();
     auto relu_fn = relu();
     auto oddln_fn = oddln();
     auto sigmoid_fn = sigmoid();
     Model model;
-    model.add_layer(make_shared<fc>(5, 3, &oddln_fn));
-    model.add_layer(make_shared<fc>(2, 5, &oddln_fn));
-    model.add_layer(make_shared<fc>(5, 2, &relu_fn));
-    model.add_layer(make_shared<fc>(3, 5, &oddln_fn));
+    // model.add_layer(make_shared<fc>(5, 3, &oddln_fn));
+    // model.add_layer(make_shared<fc>(2, 5, &oddln_fn));
+    // model.add_layer(make_shared<fc>(5, 2, &relu_fn));
+    model.add_layer(make_shared<fc>(3, 3, &ident_fn));
+    //DEBUG("layer_0", model.layers[0])
 
     auto e = sqerr();
 
     float last_cost = -1.0; //Some impossible cost to make sure we don't
                             //terminate early
     float cost = -1.0;
-    vector<float> output;
-    #define max_iter 10000
+    Matrix<float> output;
+    #define max_iter 3
     int num_iter = 0;
     do {
         last_cost = cost;
         
-        output = model.ff(f);
+        //DEBUG("model in", f);
+        output = model.ff(&f);
+        //DEBUG("model out", output);
 
-        cost = e.cc(output, actual);
+        //cout << "Output " << output << endl;
+        //debug_out << "iter_" << num_iter << " = {" << *model.layers[0] << "}" << std::endl;
 
-        model.bp(f, e.gg(output,actual), 0.015);
+        cost = e.cc(&output, &actual);
+
+        auto gradient = e.gg(&output, &actual);
+
+        model.bp(&f, &gradient, 0.015);
     } while (abs(cost - last_cost) > 1e-7 && ++num_iter < max_iter);
 
     if (num_iter >= max_iter) {
@@ -229,12 +315,11 @@ int main() {
     cout << "Cost: " << cost << el;
     cout << "Output: " << output << el;
 
-
     //Above code was copy-pasted and then changed to use new
     //generalized versions
 
 
-    cout << "-----------------------" << el << el;
+    /*cout << "-----------------------" << el << el;
     cout << "And now to try the generalized verions:" << el;
 
     Model_generalized gmodel;
@@ -274,7 +359,12 @@ int main() {
     //How ugly... https://stackoverflow.com/questions/6795629/how-does-one-downcast-a-stdshared-ptr/6795680
     auto fv_output = static_pointer_cast<floatvec>(g_output);
     cout << "Output: " << fv_output->impl << el;
+    */
 
+
+
+
+    /*
 
     std::vector<float> test_vec = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
     int dims[] = {2, 2, 3};
@@ -358,6 +448,19 @@ int main() {
         A_tensor, 
         B_tensor
     );
+    */
+    debug_out << "]" << el;
 
+    debug_out << R"###(
+tags = set()
+for x in dbg_data:
+    tags.add(x["tag"])
+tags = list(tags)
+
+tag_groups = {}
+for tag in tags:
+    tag_groups[tag] = [x["data"] for x in dbg_data if x["tag"] == tag]
+)###";
+    debug_out.close();
     return 0;
 }

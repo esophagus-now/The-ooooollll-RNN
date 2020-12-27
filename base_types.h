@@ -1,16 +1,14 @@
 #ifndef BASE_TYPES_H
 #define BASE_TYPES_H 1
 
-#ifdef DEBUG
 #include <iostream>
-#endif
-
 #include <string>
 #include <cstdint> //For uint64_t
 #include <stdexcept> //For std::runtime_error
 #include <utility> //For std::move
 #include <memory> //For std::shared_ptr
 #include <vector>
+#include "tensor.h"
 
 
 //Should layer_data be immutable?
@@ -53,9 +51,9 @@ protected:
     //since we only want to do derived1 = derived2 (it makes no sense
     //to say base1 = base2).
     layer_data(std::string type, bool m = true) : 
-        type(type), 
+        derived_object_is_mutable(m),
         tag(next_tag++),
-        derived_object_is_mutable(m)
+        type(type)
     {}
 
     //When copy constructing, get a new tag if the derived object
@@ -129,12 +127,20 @@ struct layer {
     virtual ~layer() {}
 
     //feed-forward
-    virtual std::vector<float> ff(std::vector<float> const& x) = 0;
+    virtual Matrix<float> ff(MSpan<float> const& x) = 0;
 
     //backprop
-    virtual std::vector<float> bp(std::vector<float> const& x, std::vector<float> const& dy, float lr) = 0;
+    virtual Matrix<float> bp(MSpan<float> const& x, MSpan<float> const& dy, float lr) = 0;
+
+    //For debugging
+    virtual void dump(std::ostream &o) const { o << "(does not support dumping)"; }
 
 };
+
+
+
+std::ostream& operator<<(std::ostream &o, layer const& l);
+
 
 struct layer_generalized {
     virtual ~layer_generalized() {}
@@ -150,10 +156,10 @@ struct cost_fn {
     virtual ~cost_fn() {}
 
     //calculate cost
-    virtual float cc(std::vector<float> const& x, std::vector<float> const& actual) = 0;
+    virtual float cc(MSpan<float> const& x, MSpan<float> const& actual) = 0;
 
     //get gradient
-    virtual std::vector<float> gg(std::vector<float> const& x, std::vector<float> const& actual) = 0;
+    virtual Matrix<float> gg(MSpan<float> const& x, MSpan<float> const& actual) = 0;
 };
 
 struct cost_fn_generalized {

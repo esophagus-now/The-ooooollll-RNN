@@ -1,29 +1,109 @@
 Done:
-
+----
 [x] Model class
 [x] Relu activation function
 [x] Generalize data type (instead of forcing vector<float>)
+[x] Finish up that logging thing (header+payload format)
+[x] PBT
+    - A^T^T = A 
+    - A*B = (B^T * A^T)^T
+    - A[index] = A^T[back_index]
+[x] Input/output pair testing
+[x] Name the library
+    - <strikethrough>RelaxorFlow</strikethrough>
+    - <strikethrough>Spanner X</strikethrough>
+    - <strikethrough>Copter</strikethrough>
+    - <strikethrough>TensorChopper</strikethrough>
+    - TensorCopter 👌👌👌👌👌👌👌
+    - <strikethrough>CoatTails</strikethrough>
 
 
 To do (roughly ordered by what we want to do next):
-
-[ ] Name the library
-
-[ ] Optimizer class (with multi-example training)
-[ ] Read model from JSON/XML/etc.
-[ ] RNN layer
-[ ] CNN layer
+--------------------------------------------------
 [ ] Softmax layer
 [ ] MNIST
-
-
+[/] Write the permute_indices (or transpose) function
+[ ] Optimizer class (with multi-example training)
+[ ] Save trained models
+[ ] Read model from JSON/XML/etc.
+[ ] Different types of optimizers (adam, adaboost, etc.)
+[ ] CNN layer
+[ ] RNN layer
 
 [ ] Find a cool application
-
-
-[ ] Different types of optimizers (adam, adaboost, etc.)
-
-
-
+    - Reverse dictionary
 
 [ ] Improve performance (caching)
+    
+
+Other:
+-----
+
+import numpy as np
+debug_outs = [
+    {
+        "file": "main.cpp",
+        "line": 35
+        "tag" : "ff input",
+        "data" : np.array(...)
+    },
+    
+    {
+        "file": "main.cpp",
+        "line": 35
+        "tag" : "ff input",
+        "data" : np.array(...)
+    },
+
+]
+
+
+[x in that_big_dictionary where comment = "ff input"]
+
+[v["data"] if v["tag"] == "ff input" and v["file"] == "main.cpp" for v in debug_outs ]
+
+
+tags = set()
+for x in dbg_data:
+    tags.add(x["tag"])
+tags = list(tags)
+
+tag_groups = {}
+for tag in tags:
+    tag_groups[tag] = [x["data"] for x in dbg_data if x["tag"] == tag]
+
+
+
+
+
+
+
+
+>>> test_dy_in
+array([[ 1.201  , -1.73909, -5.92232]])
+>>> test_W_in
+array([[-0.998662 , -0.732959 ,  0.505923 ],
+       [-0.0842708,  0.0608211, -0.555797 ],
+       [-0.91195  ,  0.339611 ,  0.382751 ]])
+>>> test_bias_in
+array([-1.0132  , -0.721213,  0.571607])
+>>> test_x_in
+array([[-0.1, -0.3,  0.4]])
+>>> lr = 0.015
+
+test_dy_in = tag_groups["bp_dy_in[0]"][1]
+test_W_in = tag_groups["before_bp[0]"][1]["fc_1"]["W"]
+test_bias_in = tag_groups["before_bp[0]"][1]["fc_1"]["bias"]
+test_x_in = tag_groups["bp_inputs[0]"][1]
+test_W_out = tag_groups["after_bp[0]"][1]["fc_1"]["W"]
+
+W_out_golden = test_W_in - 0.015 * np.matmul(test_dy_in.T, test_x_in)
+
+
+
+(To recreate: 
+$ python -i debug.py 
+
+paste the above 6 lines of code
+
+)
